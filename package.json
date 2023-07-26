@@ -78,7 +78,7 @@
     "@opensearch-project/opensearch": "^2.3.1",
     "date-fns": "^2.25.0",
     "functional-models": "^2.0.1",
-    "functional-models-orm": "^2.0.20",
+    "functional-models-orm": "^2.0.21",
     "lodash": "^4.17.21"
   }
 }

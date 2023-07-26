@@ -1,7 +1,6 @@
 import merge from 'lodash/merge'
 import uniq from 'lodash/uniq'
 import { interfaces as ormInterfaces } from 'functional-models-orm'
-import { ORMType, EQUALITY_SYMBOLS } from 'functional-models-orm/constants'
 
 enum ElasticEqualityType {
   lt = 'lt',
@@ -12,6 +11,7 @@ enum ElasticEqualityType {
 
 enum ElasticQueryType {
   match = 'match',
+  term = 'term',
   wildcard = 'wildcard',
   range = 'range',
 }
@@ -20,19 +20,19 @@ type PropertiesObject = {
   [s: string]: ormInterfaces.PropertyStatement
 }
 
-const EQUALITY_SYMBOL_MAP : {[key in EQUALITY_SYMBOLS]: string|undefined } = {
-  [EQUALITY_SYMBOLS.LT]: ElasticEqualityType.lt,
-  [EQUALITY_SYMBOLS.LTE]: ElasticEqualityType.lte,
-  [EQUALITY_SYMBOLS.GT]: ElasticEqualityType.gt,
-  [EQUALITY_SYMBOLS.GTE]: ElasticEqualityType.gte,
-  [EQUALITY_SYMBOLS.EQUALS]: undefined
+const EQUALITY_SYMBOL_MAP : {[key in ormInterfaces.EQUALITY_SYMBOLS]: string|undefined } = {
+  [ormInterfaces.EQUALITY_SYMBOLS.LT]: ElasticEqualityType.lt,
+  [ormInterfaces.EQUALITY_SYMBOLS.LTE]: ElasticEqualityType.lte,
+  [ormInterfaces.EQUALITY_SYMBOLS.GT]: ElasticEqualityType.gt,
+  [ormInterfaces.EQUALITY_SYMBOLS.GTE]: ElasticEqualityType.gte,
+  [ormInterfaces.EQUALITY_SYMBOLS.EQUALS]: undefined
 }
 
 
 export const toElasticValue = (s: ormInterfaces.PropertyStatement, queryType: ElasticQueryType) => {
-  if (queryType === ElasticQueryType.match) {
+  if (queryType === ElasticQueryType.term) {
     return {
-      query: s.value,
+      value: s.value
     }
   }
   if (queryType === ElasticQueryType.wildcard) {
@@ -40,11 +40,11 @@ export const toElasticValue = (s: ormInterfaces.PropertyStatement, queryType: El
       ? s.value.toISOString()
       : s.value
     return {
-      wildcard: `${Boolean(s.options.startsWith) ? '*' : ''}${value}${Boolean(s.options.endsWith) ? '*' : ''}`
+      value: `${Boolean(s.options.endsWith) ? '*' : ''}${value}${Boolean(s.options.startsWith) ? '*' : ''}`
     }
   }
   if (queryType === ElasticQueryType.range) {
-    const equalitySymbol = EQUALITY_SYMBOL_MAP[s.options.equalitySymbol as EQUALITY_SYMBOLS]
+    const equalitySymbol = EQUALITY_SYMBOL_MAP[s.options.equalitySymbol as ormInterfaces.EQUALITY_SYMBOLS]
     if (!equalitySymbol) {
       throw new Error(`Unexpected equality symbol ${equalitySymbol}`)
     }
@@ -56,18 +56,18 @@ export const toElasticValue = (s: ormInterfaces.PropertyStatement, queryType: El
 }
 
 export const getElasticQueryType = (s: ormInterfaces.PropertyStatement) : ElasticQueryType => {
-  if (s.valueType === ORMType.string || s.valueType === ORMType.date) {
+  if (s.valueType === ormInterfaces.ORMType.string || s.valueType === ormInterfaces.ORMType.date) {
     if (s.options.startsWith || s.options.endsWith) {
       return ElasticQueryType.wildcard
     }
-    return ElasticQueryType.match
+    return ElasticQueryType.term
   }
-  if (s.valueType === ORMType.number) {
-    if (s.options.equalitySymbol !== EQUALITY_SYMBOLS.EQUALS) {
+  if (s.valueType === ormInterfaces.ORMType.number) {
+    if (s.options.equalitySymbol !== ormInterfaces.EQUALITY_SYMBOLS.EQUALS) {
       return ElasticQueryType.range
     }
   }
-  return ElasticQueryType.match
+  return ElasticQueryType.term
 }
 
 export const toElasticSize = (take: number|undefined) => {
@@ -94,31 +94,11 @@ export const toElasticQuery = (s: ormInterfaces.PropertyStatement) => {
   return {
     query: {
       [queryType]: {
-        [s.name]: toElasticValue(s, queryType)
+        [`${s.name}`]: toElasticValue(s, queryType)
       }
     }
   }
 }
-  /*
-type DatesAfterStatement = {
-  readonly type: 'datesAfter'
-  readonly key: string
-  readonly date: Date | string
-  readonly valueType: ORMType
-  readonly options: {
-    readonly equalToAndAfter: boolean
-  }
-}
-
-type DatesBeforeStatement = {
-  readonly type: 'datesBefore'
-  readonly key: string
-  readonly date: Date | string
-  readonly valueType: ORMType
-  readonly options: {
-    readonly equalToAndBefore: boolean
-  }
-   */
 
 const _getDateValue = (d: Date|string) => {
   return d instanceof Date
@@ -162,13 +142,20 @@ export const toElasticDateQuery = (
   }
 }
 
-export const propertiesToElasticQuery = (properties: PropertiesObject|undefined) => {
-  return Object.entries(properties || {}).reduce(
-    (acc, [_, partial]) => {
-      return merge(acc, toElasticQuery(partial))
+export const propertiesToElasticQuery = (properties: readonly ormInterfaces.PropertyStatement[]) => {
+  return properties.reduce(
+    (acc, statement) => {
+      const query = toElasticQuery(statement)
+      return merge(acc, query)
     },
     {}
   )
+}
+
+export const getPropertyStatements = (statements: readonly ormInterfaces.OrmQueryStatement[]) : ormInterfaces.PropertyStatement[] => {
+  return statements.filter(s => {
+    return s.type === 'property'
+  }) as ormInterfaces.PropertyStatement[]
 }
 
 export const toElasticSearch = (index: string, ormQuery: ormInterfaces.OrmQuery) => {
@@ -176,15 +163,15 @@ export const toElasticSearch = (index: string, ormQuery: ormInterfaces.OrmQuery)
     ormQuery.datesBefore || {},
     ormQuery.datesAfter || {}
   )
-  const properties = propertiesToElasticQuery(ormQuery.properties)
+  const propertyStatements = getPropertyStatements(ormQuery.chain)
+  const properties = propertiesToElasticQuery(propertyStatements)
   const sort = toElasticSort(ormQuery.sort)
   const size = toElasticSize(ormQuery.take)
   const paging = toElasticPaging(ormQuery.page)
 
   return merge(
     { index },
-    properties, 
-    dateEntries,
+    { body: merge(properties, dateEntries)},
     sort,
     paging,
     size,

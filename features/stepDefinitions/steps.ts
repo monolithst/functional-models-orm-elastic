@@ -1,7 +1,7 @@
 import { Given, When, Then } from '@cucumber/cucumber'
 import { assert } from 'chai'
 import { TextProperty, NumberProperty, DateProperty, BooleanProperty } from 'functional-models'
-import { orm, ormQuery } from 'functional-models-orm'
+import { orm, ormQuery, interfaces as ormInterfaces } from 'functional-models-orm'
 import { create as createDatastoreProvider } from '../../src/datastoreProvider'
 import { Client } from '@opensearch-project/opensearch'
 
@@ -27,6 +27,7 @@ const DATA : any = {
     name: 'test-me',
     aNumber: 1,
     aDate: '2023-01-01T00:00:01.000Z',
+    aBool: true,
   }),
   DATA_2: () => ([{
     id: '1',
@@ -52,6 +53,14 @@ const DATA : any = {
     aNumber: 4,
     aDate: '2023-04-01T00:00:01.000Z',
     aBool: false,
+  }, {
+    id: '5',
+    name: 'this is another',
+    aDate: '2023-05-01T00:00:01.000Z',
+  }, {
+    id: '6',
+    name: 'the middle is good',
+    aDate: '2023-06-01T00:00:01.000Z',
   }
   ]),
   DATA_2a: () => ({
@@ -79,22 +88,46 @@ const DATA : any = {
     ormQuery
       .ormQueryBuilder()
       .property('name', 'test-me-2')
-      .compile()
+      .compile(),
   NUMBER_RANGE_SEARCH: () => 
     ormQuery
       .ormQueryBuilder()
-      .property('aNumber', 2, { equalitySymbol: '>='})
-      .property('aNumber', 4, { equalitySymbol: '<'})
-      .compile()
-  BOOLEAN_SEARCH: () => ({
-  }),
-  DATE_RANGE_SEARCH: () => ({
-  }),
+      .property('aNumber', 2, { type: ormInterfaces.ORMType.number, equalitySymbol: ormInterfaces.EQUALITY_SYMBOLS.GTE })
+      .property('aNumber', 4, { type: ormInterfaces.ORMType.number, equalitySymbol: ormInterfaces.EQUALITY_SYMBOLS.LT })
+      .compile(),
+  TEXT_STARTS_WITH_SEARCH: () => 
+    ormQuery
+      .ormQueryBuilder()
+      .property('name', 'test-me', { startsWith: true })
+      .compile(),
+  TEXT_ENDS_WITH_SEARCH: () => 
+    ormQuery
+      .ormQueryBuilder()
+      .property('name', 'me-3', { endsWith: true })
+      .compile(),
+  FREE_FORM_TEXT_SEARCH: () => 
+    ormQuery
+      .ormQueryBuilder()
+      .property('name', 'is', { startsWith: true, endsWith: true })
+      .compile(),
+  BOOLEAN_SEARCH: () =>
+    ormQuery
+      .ormQueryBuilder()
+      .property('aBool', false, { type: ormInterfaces.ORMType.boolean })
+      .compile(),
+  DATE_RANGE_SEARCH: () =>
+    ormQuery
+      .ormQueryBuilder()
+      //@ts-ignore
+      .datesBefore('aDate', new Date('2023-05-01T00:00:01.000Z'), {})
+      //@ts-ignore
+      .datesAfter('aDate', new Date('2023-03-01T00:00:01.000Z'), {})
+      .compile(),
   SEARCH_RESULT_1: () => ([{
-    id: '1',
-    name: 'test-me-1',
-    aNumber: 1,
-    aDate: '2023-01-01T00:00:01.000Z',
+    id: '2',
+    name: 'test-me-2',
+    aNumber: 2,
+    aDate: '2023-02-01T00:00:01.000Z',
     aBool: true,
   }]),
   SEARCH_RESULT_2: () => ([{
@@ -103,33 +136,91 @@ const DATA : any = {
     aNumber: 2,
     aDate: '2023-02-01T00:00:01.000Z',
     aBool: true,
-  }{
+  }, {
     id: '3',
     name: 'test-me-3',
     aNumber: 3,
     aDate: '2023-03-01T00:00:01.000Z',
     aBool: false,
   }]),
-  SEARCH_RESULT_3: () => ({
-  }),
+  SEARCH_RESULT_3: () => ([{
+    id: '1',
+    name: 'test-me-1',
+    aNumber: 1,
+    aDate: '2023-01-01T00:00:01.000Z',
+    aBool: true,
+  }, {
+    id: '2',
+    name: 'test-me-2',
+    aNumber: 2,
+    aDate: '2023-02-01T00:00:01.000Z',
+    aBool: true,
+  }, {
+    id: '3',
+    name: 'test-me-3',
+    aNumber: 3,
+    aDate: '2023-03-01T00:00:01.000Z',
+    aBool: false,
+  }, {
+    id: '4',
+    name: 'test-me-4',
+    aNumber: 4,
+    aDate: '2023-04-01T00:00:01.000Z',
+    aBool: false,
+  }]),
+  SEARCH_RESULT_4: () => ([{
+    id: '3',
+    name: 'test-me-3',
+    aNumber: 3,
+    aDate: '2023-03-01T00:00:01.000Z',
+    aBool: false,
+  }]),
+  SEARCH_RESULT_5: () => ([{
+    id: '5',
+    name: 'this is another',
+    aDate: '2023-05-01T00:00:01.000Z',
+    aBool: null,
+    aNumber: null,
+  }, {
+    id: '6',
+    name: 'the middle is good',
+    aDate: '2023-06-01T00:00:01.000Z',
+    aBool: null,
+    aNumber: null,
+  }]),
+  SEARCH_RESULT_6: () => ([{
+    id: '3',
+    name: 'test-me-3',
+    aNumber: 3,
+    aDate: '2023-03-01T00:00:01.000Z',
+    aBool: false,
+  }, {
+    id: '4',
+    name: 'test-me-4',
+    aNumber: 4,
+    aDate: '2023-04-01T00:00:01.000Z',
+    aBool: false,
+  }]),
+  SEARCH_RESULT_7: () => ([{
+    id: '3',
+    name: 'test-me-3',
+    aNumber: 3,
+    aDate: '2023-03-01T00:00:01.000Z',
+    aBool: false,
+  }, {
+    id: '4',
+    name: 'test-me-4',
+    aNumber: 4,
+    aDate: '2023-04-01T00:00:01.000Z',
+    aBool: false,
+  }, {
+    id: '5',
+    name: 'this is another',
+    aDate: '2023-05-01T00:00:01.000Z',
+    aBool: null,
+    aNumber: null,
+  }])
 }
-
-When('a search is called on {word} with {word}', function(modelKey, dataKey)) {
-  const search = DATA[dataKey]()
-  const model = this.models[modelKey]
-  this.results = await model.search(search)
-}
-Then('the search results matches {word}', async function(dataKey) {
-  if (!this.results) {
-    throw new Error(`No results were provided.`)
-  }
-  const expected = DATA[dataKey]()
-  const actual = await this.results.instances.reduce((accP, instance) => {
-    const acc = await accP
-    return acc.concat(await instance.toObj())
-  }, Promise.resolve([]))
-  assert.deepEqual(actual, expected)
-})
 
 Given('a configured elastic client is created', function() {
   if (!this.parameters.elasticUrl) {
@@ -164,7 +255,20 @@ Given('the indices for models are cleared', { timeout: 60 * 1000 }, async functi
       if ( await this.client.indices.exists({ index })) {
         await this.client.indices.delete({ index })
       }
-      await this.client.indices.create({ index })
+      await this.client.indices.create({ 
+        index,
+		body: {
+		  mappings: {
+			properties: {
+			  id: { type: 'keyword' },
+			  name: { type: 'keyword' },
+              aNumber: { type: 'double' },
+			  aBool: { type: 'boolean' },
+			  aDate: { type: 'date' }
+			}
+		  }
+		}
+      })
       return
     }, Promise.resolve())
 })
@@ -210,5 +314,24 @@ When('many instances of {word} are created using {word}', function(modelKey, dat
 When('bulk insert is called on {word} with the model instances', async function(modelKey) {
   const model = this.models[modelKey]
   this.results = await model.bulkInsert(this.modelInstances)
+})
+
+When('a search is called on {word} with {word}', async function(modelKey, dataKey) {
+  const search = DATA[dataKey]()
+  const model = this.models[modelKey]
+  this.results = await model.search(search)
+})
+
+Then('the search results matches {word}', async function(dataKey) {
+  if (!this.results) {
+    throw new Error(`No results were provided.`)
+  }
+  const expected = DATA[dataKey]().sort((x: any, y: any) => y.id - x.id)
+  const actual = (await this.results.instances.reduce(async (accP: any, instance: any) => {
+    const acc = await accP
+    return acc.concat(await instance.toObj())
+  }, Promise.resolve([]))
+  ).sort((x: any,y: any) => y.id - x.id)
+  assert.deepEqual(actual, expected)
 })
 

@@ -34,11 +34,18 @@ Feature: Datastore Provider
     And the indices for models are cleared
     When many instances of MODEL_1 are created using DATA_2
     And bulk insert is called on MODEL_1 with the model instances
-    And a search is called on MODEL_1 with TEXT_MATCH_SEARCH 
+    When a search is called on MODEL_1 with TEXT_MATCH_SEARCH 
     Then the search results matches SEARCH_RESULT_1
     When a search is called on MODEL_1 with NUMBER_RANGE_SEARCH 
     Then the search results matches SEARCH_RESULT_2
-    #When a search is called on MODEL_1 with BOOLEAN_SEARCH 
-    #Then the search results matches SEARCH_RESULT_3
-    #When a search is called on MODEL_1 with DATE_RANGE_SEARCH 
-    #Then the search results matches SEARCH_RESULT_4
+    When a search is called on MODEL_1 with TEXT_STARTS_WITH_SEARCH 
+    Then the search results matches SEARCH_RESULT_3
+    When a search is called on MODEL_1 with TEXT_ENDS_WITH_SEARCH 
+    Then the search results matches SEARCH_RESULT_4
+    When a search is called on MODEL_1 with FREE_FORM_TEXT_SEARCH
+    Then the search results matches SEARCH_RESULT_5
+    When a search is called on MODEL_1 with BOOLEAN_SEARCH 
+    Then the search results matches SEARCH_RESULT_6
+    When a search is called on MODEL_1 with DATE_RANGE_SEARCH 
+    Then the search results matches SEARCH_RESULT_7
+   

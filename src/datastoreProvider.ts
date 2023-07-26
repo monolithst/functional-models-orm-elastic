@@ -1,4 +1,5 @@
 import merge from 'lodash/merge'
+import get from 'lodash/get'
 import {
   DatastoreProvider,
   DatesAfterStatement,
@@ -43,10 +44,15 @@ export const create = ({
     return Promise.resolve().then(async () => {
       const index = getIndexForModel(model)
       const search = toElasticSearch(index, ormQuery)
-      console.log("SEARCH")
-      console.log(search)
       const results = await client.search(search)
-      console.log(results)
+        .then((response: any) => {
+          const toMap = get(response, 'body.hits.hits', [])
+          const instances = toMap.map((raw: any) => raw._source)
+          return {
+            instances,
+            page: undefined
+          }
+        })
       return results
     })
   }
