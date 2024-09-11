@@ -56,8 +56,9 @@ export const create = ({
   ) => {
     const index = getIndexForModel(instance.getModel())
     const data = await instance.toObj()
+    const id = data[instance.getPrimaryKeyName()]
     await client.index({
-      id: await instance.getPrimaryKey(),
+      id,
       index,
       body: data,
     })
