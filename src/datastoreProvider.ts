@@ -1,12 +1,5 @@
-import merge from 'lodash/merge'
 import get from 'lodash/get'
-import {
-  DatastoreProvider,
-  DatesAfterStatement,
-  DatesBeforeStatement,
-  OrmQuery,
-  PropertyStatement,
-} from 'functional-models-orm/interfaces'
+import { DatastoreProvider, OrmQuery } from 'functional-models-orm/interfaces'
 import {
   FunctionalModel,
   PrimaryKeyType,
@@ -16,14 +9,16 @@ import {
 import * as types from './types'
 import { toElasticSearch } from './lib'
 
-export const defaultGetIndexForModel = <T extends FunctionalModel>(model: Model<T>) => {
+export const defaultGetIndexForModel = <T extends FunctionalModel>(
+  model: Model<T>
+) => {
   return model.getName().toLowerCase()
 }
 
 export const create = ({
   client,
-  getIndexForModel=defaultGetIndexForModel,
-}: types.DatastoreProviderInputs) : DatastoreProvider => {
+  getIndexForModel = defaultGetIndexForModel,
+}: types.DatastoreProviderInputs): DatastoreProvider => {
   const retrieve = async <T extends FunctionalModel>(
     model: Model<T>,
     id: PrimaryKeyType
@@ -33,7 +28,7 @@ export const create = ({
       index,
       id,
     })
-    
+
     return body._source
   }
 
@@ -44,15 +39,14 @@ export const create = ({
     return Promise.resolve().then(async () => {
       const index = getIndexForModel(model)
       const search = toElasticSearch(index, ormQuery)
-      const results = await client.search(search)
-        .then((response: any) => {
-          const toMap = get(response, 'body.hits.hits', [])
-          const instances = toMap.map((raw: any) => raw._source)
-          return {
-            instances,
-            page: undefined
-          }
-        })
+      const results = await client.search(search).then((response: any) => {
+        const toMap = get(response, 'body.hits.hits', [])
+        const instances = toMap.map((raw: any) => raw._source)
+        return {
+          instances,
+          page: undefined,
+        }
+      })
       return results
     })
   }
@@ -65,7 +59,7 @@ export const create = ({
     await client.index({
       id: await instance.getPrimaryKey(),
       index,
-      body: data
+      body: data,
     })
     return data
   }
@@ -78,18 +72,26 @@ export const create = ({
       return
     }
     const index = getIndexForModel(instances[0].getModel())
-    const operations = await instances.reduce(async (accP: Promise<any[]>, instance: ModelInstance<T, TModel>) => {
-      const acc = await accP
-      const data = await instance.toObj()
-      const id = await instance.getPrimaryKey()
-      return acc.concat([{
-        index: { _index: index, _id: id },
-      }, 
-        data,
-      ])
-      return acc.concat(data)
-    }, Promise.resolve([] as any[]))
-    const bulkResponse = await client.bulk({ index, refresh: true, body: operations })
+    const operations = await instances.reduce(
+      async (accP: Promise<any[]>, instance: ModelInstance<T, TModel>) => {
+        const acc = await accP
+        const data = await instance.toObj()
+        const id = await instance.getPrimaryKey()
+        return acc.concat([
+          {
+            index: { _index: index, _id: id },
+          },
+          data,
+        ])
+        return acc.concat(data)
+      },
+      Promise.resolve([] as any[])
+    )
+    await client.bulk({
+      index,
+      refresh: true,
+      body: operations,
+    })
     //TODO: Handle exceptions
     return
   }
@@ -98,7 +100,7 @@ export const create = ({
     instance: ModelInstance<T, TModel>
   ) => {
     const index = getIndexForModel(instance.getModel())
-    const result = await client.delete({
+    await client.delete({
       index,
       id: await instance.getPrimaryKey(),
     })
@@ -107,7 +109,7 @@ export const create = ({
 
   return {
     bulkInsert,
-  //@ts-ignore
+    //@ts-ignore
     search,
     retrieve,
     save,
