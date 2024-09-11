@@ -77,7 +77,7 @@ export const create = ({
       async (accP: Promise<any[]>, instance: ModelInstance<T, TModel>) => {
         const acc = await accP
         const data = await instance.toObj()
-        const id = await instance.getPrimaryKey()
+        const id = data[instance.getPrimaryKeyName()]
         return acc.concat([
           {
             index: { _index: index, _id: id },
