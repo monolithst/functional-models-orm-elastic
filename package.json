@@ -1,7 +1,7 @@
 {
-  "name": "functional-models-orm-elastic",
+  "name": "functional-models-orm-opensearch",
   "version": "1.0.3",
-  "description": "A functional-models-orm datastore provider that Opensearch.",
+  "description": "A functional-models-orm datastore provider for Opensearch.",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
@@ -17,7 +17,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/monolithst/functional-models-orm-elastic.git"
+    "url": "git+https://github.com/monolithst/functional-models-orm-opensearch.git"
   },
   "nyc": {
     "extends": "@istanbuljs/nyc-config-typescript",
@@ -47,9 +47,9 @@
   "author": "Mike Cornwell",
   "license": "GPL-3.0-or-later",
   "bugs": {
-    "url": "https://github.com/monolithst/functional-models-orm-elastic/issues"
+    "url": "https://github.com/monolithst/functional-models-orm-opensearch/issues"
   },
-  "homepage": "https://github.com/monolithst/functional-models-orm-elastic#readme",
+  "homepage": "https://github.com/monolithst/functional-models-orm-opensearch#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org"
   },
