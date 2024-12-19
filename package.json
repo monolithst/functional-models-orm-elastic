@@ -81,7 +81,6 @@
   },
   "dependencies": {
     "@opensearch-project/opensearch": "^2.3.1",
-    "date-fns": "^3.6.0",
     "functional-models": "^2.1.9",
     "functional-models-orm": "^2.1.9",
     "lodash": "^4.17.21"
