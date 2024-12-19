@@ -1,5 +1,5 @@
 {
-  "name": "functional-models-orm-opensearch",
+  "name": "functional-models-orm-elastic",
   "version": "1.0.3",
   "description": "A functional-models-orm datastore provider for Opensearch.",
   "main": "index.js",
