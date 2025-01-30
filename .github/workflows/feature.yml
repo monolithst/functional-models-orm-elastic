@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Create dynamo db for tests
+      - name: Create database for tests
         run: docker compose -f ./elastic-feature-tests.yml up -d
 
       - name: Install dependencies
