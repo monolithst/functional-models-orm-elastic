@@ -1,8 +1,8 @@
-import { FunctionalModel, Model } from 'functional-models/interfaces'
+import { DataDescription, ModelType } from 'functional-models'
 
-export type DatastoreProviderInputs = {
+export type DatastoreAdapterInputs = {
   client: any
-  getIndexForModel?: <T extends FunctionalModel>(model: Model<T>) => string
+  getIndexForModel?: <T extends DataDescription>(model: ModelType<T>) => string
 }
 
 export type ErrorOperation = {
