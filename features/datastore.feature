@@ -2,7 +2,7 @@ Feature: Datastore Provider
 
   Scenario: Saving, Retrieving and Deleting
     Given a configured elastic client is created
-    And a configured datastore provider is created
+    And a configured datastore adapter is created
     And test models are created
     And the indices for models are cleared
     When a MODEL_1 with DATA_1 is created
@@ -15,7 +15,7 @@ Feature: Datastore Provider
 
   Scenario: Bulk Inserting
     Given a configured elastic client is created
-    And a configured datastore provider is created
+    And a configured datastore adapter is created
     And test models are created
     And the indices for models are cleared
     When many instances of MODEL_1 are created using DATA_2
@@ -27,9 +27,28 @@ Feature: Datastore Provider
     When MODEL_1 retrieve is called with the id from DATA_2c
     Then the object data matches DATA_2c
 
+  Scenario: Sorting, Paging, and Takes
+    Given a configured elastic client is created
+    And a configured datastore adapter is created
+    And test models are created
+    And the indices for models are cleared
+    When many instances of MODEL_1 are created using DATA_2
+    And bulk insert is called on MODEL_1 with the model instances
+    When a search is called on MODEL_1 with SORTING_1_SEARCH
+    Then the search results matches SORTING_1_SEARCH_RESULTS
+    When a search is called on MODEL_1 with SORTING_2_SEARCH
+    Then the search results matches SORTING_2_SEARCH_RESULTS
+    When a search is called on MODEL_1 with EMPTY_SEARCH
+    Then there are 11 instances returned
+    When a search is called on MODEL_1 with TAKE_SEARCH
+    Then there are 10 instances returned
+    Then there is a page matching PAGE_1
+    When a search is called on MODEL_1 with EMPTY_SEARCH_WITH_PAGE
+    Then there are 1 instances returned
+
   Scenario: Search
     Given a configured elastic client is created
-    And a configured datastore provider is created
+    And a configured datastore adapter is created
     And test models are created
     And the indices for models are cleared
     When many instances of MODEL_1 are created using DATA_2

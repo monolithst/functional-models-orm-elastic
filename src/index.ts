@@ -1,2 +1,2 @@
-export * as datastoreProvider from './datastoreProvider'
+export * as datastoreAdapter from './datastoreAdapter'
 export * as types from './types'

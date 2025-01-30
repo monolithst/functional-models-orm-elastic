@@ -1,9 +1,23 @@
 import merge from 'lodash/merge'
-import uniq from 'lodash/uniq'
 import {
-  interfaces as ormInterfaces,
-  ormQuery as ormQueryLib,
-} from 'functional-models-orm'
+  BooleanQuery,
+  DatastoreValueType,
+  DatesAfterQuery,
+  DatesBeforeQuery,
+  EqualitySymbol,
+  isALinkToken,
+  isPropertyBasedQuery,
+  OrmSearch,
+  PropertyQuery,
+  Query,
+  QueryTokens,
+  SortOrder,
+  SortStatement,
+  threeitize,
+  validateOrmSearch,
+} from 'functional-models'
+
+const MAX_TAKE = 10000
 
 enum ElasticEqualityType {
   lt = 'lt',
@@ -19,18 +33,16 @@ enum ElasticQueryType {
   range = 'range',
 }
 
-const EQUALITY_SYMBOL_MAP: {
-  [key in ormInterfaces.EQUALITY_SYMBOLS]: string | undefined
-} = {
-  [ormInterfaces.EQUALITY_SYMBOLS.LT]: ElasticEqualityType.lt,
-  [ormInterfaces.EQUALITY_SYMBOLS.LTE]: ElasticEqualityType.lte,
-  [ormInterfaces.EQUALITY_SYMBOLS.GT]: ElasticEqualityType.gt,
-  [ormInterfaces.EQUALITY_SYMBOLS.GTE]: ElasticEqualityType.gte,
-  [ormInterfaces.EQUALITY_SYMBOLS.EQUALS]: undefined,
+const EQUALITY_SYMBOL_MAP: Record<EqualitySymbol, string | undefined> = {
+  [EqualitySymbol.lt]: ElasticEqualityType.lt,
+  [EqualitySymbol.lte]: ElasticEqualityType.lte,
+  [EqualitySymbol.gt]: ElasticEqualityType.gt,
+  [EqualitySymbol.gte]: ElasticEqualityType.gte,
+  [EqualitySymbol.eq]: undefined,
 }
 
 export const toElasticValue = (
-  s: ormInterfaces.PropertyStatement,
+  s: PropertyQuery,
   queryType: ElasticQueryType
 ) => {
   if (queryType === ElasticQueryType.term) {
@@ -46,9 +58,7 @@ export const toElasticValue = (
   }
   if (queryType === ElasticQueryType.range) {
     const equalitySymbol =
-      EQUALITY_SYMBOL_MAP[
-        s.options.equalitySymbol as ormInterfaces.EQUALITY_SYMBOLS
-      ]
+      EQUALITY_SYMBOL_MAP[s.equalitySymbol as EqualitySymbol]
     if (!equalitySymbol) {
       throw new Error(`Unexpected equality symbol ${equalitySymbol}`)
     }
@@ -59,55 +69,54 @@ export const toElasticValue = (
   throw new Error(`Unhandled queryType: ${queryType}`)
 }
 
-export const getElasticQueryType = (
-  s: ormInterfaces.PropertyStatement
-): ElasticQueryType => {
+export const getElasticQueryType = (s: PropertyQuery): ElasticQueryType => {
   if (
-    s.valueType === ormInterfaces.ORMType.string ||
-    s.valueType === ormInterfaces.ORMType.date
+    s.valueType === DatastoreValueType.string ||
+    s.valueType === DatastoreValueType.date
   ) {
     if (s.options.startsWith || s.options.endsWith) {
       return ElasticQueryType.wildcard
     }
     return ElasticQueryType.term
   }
-  if (s.valueType === ormInterfaces.ORMType.number) {
-    if (s.options.equalitySymbol !== ormInterfaces.EQUALITY_SYMBOLS.EQUALS) {
+  if (s.valueType === DatastoreValueType.number) {
+    if (s.equalitySymbol !== EqualitySymbol.eq) {
       return ElasticQueryType.range
     }
   }
   return ElasticQueryType.term
 }
 
-export const toElasticSize = (take: number | undefined) => {
-  return take
-    ? {
-        size: take,
+export const toElasticSize = (search: OrmSearch) => {
+  if (search.take) {
+    if (search.page) {
+      const isAboveMax = search.take + search.page.from > MAX_TAKE
+      if (isAboveMax) {
+        return { size: MAX_TAKE - search.page.from }
       }
-    : {}
+    }
+    return { size: search.take }
+  }
+  return {}
 }
 
-export const toElasticSort = (
-  sort: ormInterfaces.SortStatement | undefined
-) => {
+export const toElasticSort = (sort: SortStatement | undefined) => {
   return sort
     ? {
-        sort: `${sort.key}:${sort.order ? 'asc' : 'desc'}`,
+        sort: `${sort.key}:${sort.order === SortOrder.asc ? 'asc' : 'desc'}`,
       }
     : {}
 }
 
-export const toElasticPaging = (
-  _: ormInterfaces.PaginationStatement | undefined
-) => {
-  return ''
+export const toElasticPaging = (page?: { from: number }) => {
+  return page
 }
 
-export const toElasticQuery = (s: ormInterfaces.PropertyStatement) => {
+export const toElasticQuery = (s: PropertyQuery) => {
   const queryType = getElasticQueryType(s)
   return {
     [queryType]: {
-      [`${s.name}`]: toElasticValue(s, queryType),
+      [`${s.key}`]: toElasticValue(s, queryType),
     },
   }
 }
@@ -117,9 +126,7 @@ const _getDateValue = (d: Date | string) => {
 }
 
 export const toElasticDateRange = (
-  statement:
-    | ormInterfaces.DatesBeforeStatement
-    | ormInterfaces.DatesAfterStatement
+  statement: DatesBeforeQuery | DatesAfterQuery
 ) => {
   const name =
     statement.type === 'datesBefore'
@@ -138,126 +145,81 @@ export const toElasticDateRange = (
   }
 }
 
-export const toElasticDateQuery = (
-  datesBefore: { [s: string]: ormInterfaces.DatesBeforeStatement },
-  datesAfter: { [s: string]: ormInterfaces.DatesAfterStatement }
-) => {
-  const dateProps = uniq(
-    Object.keys(datesBefore).concat(Object.keys(datesAfter))
-  )
-  if (dateProps.length < 1) {
-    return undefined
-  }
-  return {
-    range: dateProps.reduce((acc, name) => {
-      const before = datesBefore[name]
-        ? {
-            [datesBefore[name].options.equalToAndBefore ? 'lte' : 'lt']:
-              _getDateValue(datesBefore[name].date),
-          }
-        : {}
-      const after = datesAfter[name]
-        ? {
-            [datesAfter[name].options.equalToAndAfter ? 'gte' : 'gt']:
-              _getDateValue(datesAfter[name].date),
-          }
-        : {}
-      return merge(acc, { [name]: merge(before, after) })
-    }, {}),
-  }
+const _getBooleanFunc = (token: BooleanQuery) => {
+  return token === 'AND' ? 'must' : 'should'
 }
 
-export const propertiesToElasticQuery = (
-  properties: readonly ormInterfaces.PropertyStatement[]
-) => {
-  const statements = properties.reduce((acc, statement) => {
-    const query = toElasticQuery(statement)
-    return acc.concat(query)
-  }, [] as any[])
-  // TODO: We need to group the statements together by "and" and "or" statements. all and statements are 'must' and all or are "should"
-  return [
-    {
-      bool: {
-        must: statements,
-      },
-    },
-  ]
-}
-
-export const getPropertyStatements = (
-  statements: readonly ormInterfaces.OrmQueryStatement[]
-): ormInterfaces.PropertyStatement[] => {
-  return statements.filter(s => {
-    return s.type === 'property'
-  }) as ormInterfaces.PropertyStatement[]
-}
-
-const createMust = (
-  statement:
-    | ormInterfaces.PropertyStatement
-    | ormInterfaces.DatesBeforeStatement
-    | ormInterfaces.DatesAfterStatement
-) => {
+const _buildProperty = (statement: Query) => {
   if (statement.type === 'datesBefore' || statement.type === 'datesAfter') {
-    const dateQuery = toElasticDateRange(statement)
+    return toElasticDateRange(statement)
+  }
+  return toElasticQuery(statement)
+}
+
+const _buildQuery = (
+  tokens: QueryTokens
+): {
+  bool: {
+    must: any[]
+  }
+} => {
+  if (isPropertyBasedQuery(tokens)) {
+    const query = _buildProperty(tokens)
     return {
       bool: {
-        must: [dateQuery],
+        must: [query],
       },
     }
   }
-
-  const query = toElasticQuery(statement)
-  return {
-    bool: {
-      must: [query],
-    },
-  }
-}
-
-const createShould = (
-  orProperties: (
-    | ormInterfaces.PropertyStatement
-    | ormInterfaces.DatesBeforeStatement
-    | ormInterfaces.DatesAfterStatement
-  )[]
-) => {
-  const queries = orProperties.reduce((acc, statement) => {
-    if (statement.type === 'datesBefore' || statement.type === 'datesAfter') {
-      const dateQuery = toElasticDateRange(statement)
-      return acc.concat(dateQuery)
+  if (Array.isArray(tokens)) {
+    // Is everything just a property query? If so, they are all ANDS.
+    if (tokens.every(t => !isALinkToken(t))) {
+      const queries = tokens.map(_buildProperty)
+      return {
+        bool: {
+          must: queries,
+        },
+      }
     }
-
-    const query = toElasticQuery(statement)
-    return acc.concat(query)
-  }, [] as any[])
-  return {
-    bool: {
-      should: queries,
-    },
+    const threes = threeitize(tokens)
+    const innerStatements = threes.map(([a, l, b]) => {
+      const aSearch = _buildQuery(a as Query)
+      const bSearch = _buildQuery(b as Query)
+      const linker = _getBooleanFunc(l)
+      return {
+        bool: {
+          [linker]: [aSearch, bSearch],
+        },
+      }
+    })
+    return {
+      bool: {
+        must: innerStatements,
+      },
+    }
+    // Dealing with complex situation
   }
+  throw new Error('Never going to get here')
 }
 
-export const toElasticSearch = (
-  index: string,
-  ormQuery: ormInterfaces.OrmQuery
-) => {
+export const toElasticSearch = (index: string, ormQuery: OrmSearch) => {
+  validateOrmSearch(ormQuery)
+  /*
   const booleanChains = ormQueryLib.createBooleanChains(ormQuery)
   const musts = booleanChains.ands.map(createMust)
   const shoulds = booleanChains.orChains.map(createShould)
+   */
+
   const sort = toElasticSort(ormQuery.sort)
-  const size = toElasticSize(ormQuery.take)
+  const size = toElasticSize(ormQuery)
+  // @ts-ignore
   const paging = toElasticPaging(ormQuery.page)
 
   return merge(
     { index },
     {
       body: {
-        query: {
-          bool: {
-            must: [...musts, ...shoulds],
-          },
-        },
+        query: _buildQuery(ormQuery.query),
       },
     },
     sort,
